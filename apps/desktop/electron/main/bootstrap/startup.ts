@@ -107,6 +107,7 @@ export type StartupDependencies = {
   ensureWindow: () => Promise<boolean>;
   bootHostStatus: (bootError: unknown) => unknown;
   flushPendingApplicationMenuCommands: () => void;
+  deliverCliProjectOpen: () => void;
   getSidecar?: () => unknown;
   invokeSessionCollaboration?: (input: McpControlInvokeInput) => Promise<unknown>;
   onSessionQueueChange?: () => void;
@@ -167,6 +168,7 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
       ensureWindow,
       bootHostStatus,
       flushPendingApplicationMenuCommands,
+      deliverCliProjectOpen,
     } = deps;
 
     // A launch that lost the single-instance lock is already quitting. Never
@@ -376,6 +378,7 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
       sendToRenderer(IPC.event.hostStatus, bootHostStatus(bootError));
       state.applicationBooted = true;
       flushPendingApplicationMenuCommands();
+      deliverCliProjectOpen();
     }, 300);
 
     // Headless boot probe for automated e2e (scripts/e2e-electron-boot.mjs):

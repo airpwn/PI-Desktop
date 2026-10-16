@@ -15,6 +15,7 @@ import {
 import {
   clearSessionAsks,
 } from "../../lib/pending-asks";
+import { defaultProjectName } from "../../lib/project-name";
 import {
   clearSessionPermissions,
 } from "../../lib/pending-permissions";
@@ -240,6 +241,9 @@ export function createProjectSlice({
   | "createProjectFromGit"
   | "clearProject"
   | "deleteProject"
+  | "handleCliProjectOpen"
+  | "dismissProjectOpenPrompt"
+  | "confirmProjectOpenPrompt"
   | "toggleSessionPinned"
   | "toggleSessionArchived"
   | "archiveSession"
@@ -485,6 +489,46 @@ export function createProjectSlice({
       if (isOpen) await get().closeProjectPath(path);
       persistCurrentSidebar(get);
       await get().refreshSessions();
+    },
+
+    /**
+     * A folder passed on the CLI: activate it when it already belongs to a
+     * group, otherwise create a project for it — immediately in "auto" mode,
+     * or after the confirmation dialog in the default "prompt" mode.
+     */
+    handleCliProjectOpen: async (path) => {
+      const key = normalizeProjectPath(path);
+      if (!key) return;
+      const { groups } = await api.listProjectGroups();
+      const existing = groups.find((group) =>
+        group.roots.some((root) => normalizeProjectPath(root.path) === key),
+      );
+      if (existing) {
+        await get().activateProject(existing.primaryPath || path);
+        return;
+      }
+      set({ projectOpenPromptPath: path });
+      if (get().settings?.cliOpenFolderBehavior === "auto") {
+        await get().confirmProjectOpenPrompt();
+      }
+    },
+
+    dismissProjectOpenPrompt: () => {
+      set({ projectOpenPromptPath: null });
+    },
+
+    confirmProjectOpenPrompt: async () => {
+      const path = get().projectOpenPromptPath;
+      set({ projectOpenPromptPath: null });
+      if (!path) return;
+      await createNamedProjectGroup(
+        { get, set, runtime },
+        {
+          name: defaultProjectName({ source: "local", folders: [path] }),
+          folders: [path],
+          primaryPath: path,
+        },
+      );
     },
 
     toggleSessionPinned: (id) => {

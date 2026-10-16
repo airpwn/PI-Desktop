@@ -1577,6 +1577,12 @@ export const api = {
       listener((payload as { command: AppMenuCommand }).command),
     );
   },
+  onProjectOpenRequest: (listener: (event: { path: string }) => void) => {
+    if (!window.piDesktop?.on) return () => undefined;
+    return window.piDesktop.on(IPC.event.projectOpenRequest, (payload) =>
+      listener(payload as { path: string }),
+    );
+  },
   onBrowserState: (listener: (state: BrowserState) => void) => {
     if (!window.piDesktop?.on) return () => undefined;
     return window.piDesktop.on(IPC.event.browserState, (payload) =>

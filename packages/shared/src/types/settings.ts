@@ -75,6 +75,12 @@ export type AppSettings = {
   promptEnhancementThinkingLevel?: ThinkingLevel;
   defaultPermissionMode?: GlobalPermissionMode;
   theme: ThemePreference;
+  /**
+   * CLI folder open behavior (`pi-desktop <path>`): `prompt` asks before
+   * creating an unknown folder as a project; `auto` creates it directly.
+   * Absent means `prompt`.
+   */
+  cliOpenFolderBehavior?: "prompt" | "auto";
   /** UI language; `auto` (and absent) follows the OS locale. */
   language?: "auto" | "en" | "zh-CN" | "zh-TW" | "tr" | "de" | "es" | "fr" | "ko" | "pt-BR";
   /**

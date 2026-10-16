@@ -539,6 +539,7 @@ const {
   applyAppThemePreference,
   broadcastAppearance,
   flushPendingApplicationMenuCommands,
+  deliverCliProjectOpen,
 } = applicationLifecycle;
 
 wirePluginThemeRuntimeServices({
@@ -1025,6 +1026,7 @@ registerApplicationStartup({
   ensureWindow,
   bootHostStatus,
   flushPendingApplicationMenuCommands,
+  deliverCliProjectOpen,
   invokeSessionCollaboration: sessionCollaboration.invoke,
   onSessionQueueChange: () => {
     void sessionCollaboration.drain().catch((error: unknown) => {
@@ -1062,4 +1064,5 @@ registerApplicationActivation({
   isQuitting: () => mainState.quitting,
   isApplicationBooted: () => applicationLifecycleState.applicationBooted,
   hasVisibleWindow,
+  requestCliProjectOpen: deliverCliProjectOpen,
 });

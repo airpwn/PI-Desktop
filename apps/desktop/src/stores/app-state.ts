@@ -133,6 +133,8 @@ export type AppState = {
   /** Kept as a flat map for lightweight consumers (Sidebar). */
   projectCollapsed: Record<string, boolean>;
   projectSort: ProjectSort;
+  /** Folder passed on the CLI awaiting the "create project?" confirmation. */
+  projectOpenPromptPath: string | null;
   activeSessionId?: string;
   /** Composer toolbar choices retained on the draft while it has no session. */
   draftConfiguration: DraftSessionConfiguration | null;
@@ -302,6 +304,12 @@ export type AppState = {
   switchProjectPath: (path: string) => Promise<ProjectWorkspace | null>;
   closeProjectPath: (path: string) => Promise<void>;
   clearProject: (opts?: NavigationOptions) => Promise<void>;
+  /** Handle a folder passed on the CLI: activate, prompt, or auto-create. */
+  handleCliProjectOpen: (path: string) => Promise<void>;
+  /** Dismiss the CLI "create project?" prompt without creating anything. */
+  dismissProjectOpenPrompt: () => void;
+  /** Confirm the CLI prompt and create the project for the pending folder. */
+  confirmProjectOpenPrompt: () => Promise<void>;
   /**
    * Delete a project and its stored sessions on the host, then drop every
    * renderer-local record of it. A path the host has no durable row for is

@@ -439,6 +439,8 @@ export const IPC = {
     windowFullScreen: "pi-desktop/window/event/fullscreen",
     windowWorkPanelResize: "pi-desktop/window/event/workPanelResize",
     menuCommand: "pi-desktop/menu/event/command",
+    /** A folder passed on the CLI (`pi-desktop <path>`) for the shell to open. */
+    projectOpenRequest: "pi-desktop/app/event/projectOpenRequest",
     traySessionActivated: "pi-desktop/tray/event/sessionActivated",
     notificationChanged: "pi-desktop/notification/event/changed",
     sessionsChanged: "pi-desktop/session/event/changed",
