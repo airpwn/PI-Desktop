@@ -8,7 +8,6 @@ import {
   IconPanelOpen,
 } from "../../components/icons";
 import { ProjectCreateDialog } from "../../components/ProjectCreateDialog";
-import { ProjectOpenPromptDialog } from "../../components/ProjectOpenPromptDialog";
 import { SearchDialog } from "../../components/SearchDialog";
 import { Sidebar } from "../../components/Sidebar";
 import { StartupRecovery } from "../../components/StartupRecovery";
@@ -377,7 +376,6 @@ export function AppShell() {
         <WindowControls />
       ) : null}
       <ProjectCreateDialog />
-      <ProjectOpenPromptDialog />
       {splash}
       {startupRecovery}
     </div>

@@ -161,7 +161,35 @@ test("the renderer buffers a project request until the store is ready", () => {
 });
 
 test("the CLI open behavior is a persisted setting with a General row", () => {
-  assert.match(settingsTypesSource, /cliOpenFolderBehavior\?:\s*"prompt"\s*\|\s*"auto"/);
+  assert.match(settingsTypesSource, /cliOpenFolderBehavior\?:\s*"prompt"\s*\|\s*"auto"\s*\|\s*"none"/);
+  assert.match(settingsPageSource, /cliOpenFolderNone/);
   assert.match(settingsPageSource, /t\("settings\.cliOpenFolderTitle"\)/);
   assert.match(settingsPageSource, /cliOpenFolderBehavior/);
+});
+
+const [projectSliceSource, appStateSource, initialStateSource] = await Promise.all([
+  read("../src/stores/slices/project-slice.ts"),
+  read("../src/stores/app-state.ts"),
+  read("../src/stores/slices/initial-state.ts"),
+]);
+
+test("the CLI open contract activates, skips, auto-creates, or prefills the form", () => {
+  const start = projectSliceSource.indexOf("handleCliProjectOpen: async (path) => {");
+  const end = projectSliceSource.indexOf("toggleSessionPinned:", start);
+  const handler = projectSliceSource.slice(start, end);
+  assert.ok(start >= 0 && end > start, "CLI open handler should exist");
+  // Known folder: "none" keeps the current chat, the other modes activate it.
+  assert.match(handler, /cliOpenFolderBehavior !== "none"/);
+  assert.match(handler, /activateProject\(existing\.primaryPath \|\| path\)/);
+  // Unknown folder: "auto" creates silently; "prompt"/"none" open the Create
+  // Project form prefilled with the folder and the clone destination.
+  assert.match(handler, /cliOpenFolderBehavior === "auto"/);
+  assert.match(handler, /createNamedProjectGroup\(/);
+  assert.match(handler, /defaultProjectName\(\{ source: "local", folders: \[path\] \}\)/);
+  assert.match(handler, /openProject\(\{ prefill: \{ folders: \[path\], cloneParent: path \} \}\)/);
+  // The confirmation dialog is gone; only the prefill state remains.
+  assert.doesNotMatch(projectSliceSource, /projectOpenPromptPath|ProjectOpenPrompt/);
+  assert.doesNotMatch(appStateSource, /projectOpenPromptPath|ProjectOpenPrompt/);
+  assert.match(appStateSource, /createProjectDialogPrefill:/);
+  assert.match(initialStateSource, /createProjectDialogPrefill: null/);
 });

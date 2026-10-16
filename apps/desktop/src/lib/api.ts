@@ -923,11 +923,26 @@ export const api = {
       IPC.invoke.projectClone,
       { url },
     ),
-  cloneProjectInto: (url: string, parentPath: string) =>
+  /**
+   * Clone a git remote into `parentPath`. Without `intoParent` the repository
+   * lands in a subfolder named after it (or `name`); with `intoParent` it
+   * lands in `parentPath` itself, which must be empty.
+   */
+  cloneProjectInto: (
+    url: string,
+    parentPath: string,
+    options?: { intoParent?: boolean; name?: string },
+  ) =>
     invoke<{ path: string; name: string }>(IPC.invoke.projectCloneCheckout, {
       url,
       parentPath,
+      ...(options ?? {}),
     }),
+  inspectPath: (path: string) =>
+    invoke<{ exists: boolean; isDirectory: boolean; empty: boolean }>(
+      IPC.invoke.fsInspectPath,
+      { path },
+    ),
   pickFiles: () =>
     invoke<{ token: string | null; canceled?: boolean }>(IPC.invoke.composerPickFiles),
   getDroppedFilePath: (file: File) =>

@@ -76,11 +76,13 @@ export type AppSettings = {
   defaultPermissionMode?: GlobalPermissionMode;
   theme: ThemePreference;
   /**
-   * CLI folder open behavior (`pi-desktop <path>`): `prompt` asks before
-   * creating an unknown folder as a project; `auto` creates it directly.
-   * Absent means `prompt`.
+   * CLI folder open behavior (`pi-desktop <path>`): `prompt` opens the Create
+   * Project form for an unknown folder and activates a registered one;
+   * `auto` creates or activates silently; `none` never switches the active
+   * project for a registered folder but still opens the Create form for an
+   * unknown one. Absent means `prompt`.
    */
-  cliOpenFolderBehavior?: "prompt" | "auto";
+  cliOpenFolderBehavior?: "prompt" | "auto" | "none";
   /** UI language; `auto` (and absent) follows the OS locale. */
   language?: "auto" | "en" | "zh-CN" | "zh-TW" | "tr" | "de" | "es" | "fr" | "ko" | "pt-BR";
   /**

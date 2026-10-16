@@ -457,12 +457,14 @@ export function SettingsPage() {
                       void saveSettings({
                         cliOpenFolderBehavior: behavior as
                           | "prompt"
-                          | "auto",
+                          | "auto"
+                          | "none",
                       })
                     }
                     options={[
                       { id: "prompt", label: t("settings.cliOpenFolderPrompt") },
                       { id: "auto", label: t("settings.cliOpenFolderAuto") },
+                      { id: "none", label: t("settings.cliOpenFolderNone") },
                     ]}
                   />
                 </SettingsRow>

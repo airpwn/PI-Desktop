@@ -37,6 +37,7 @@ export function createInitialState(): AppStateData {
     openProjectPaths: initialSidebarPreferences.openProjectPaths,
     createProjectDialogOpen: false,
     createProjectDialogRemoteHostKey: undefined,
+    createProjectDialogPrefill: null,
     activeProjectPath: undefined,
     projectMeta: initialSidebarPreferences.projectMeta,
     projectCollapsed: Object.fromEntries(
@@ -51,7 +52,6 @@ export function createInitialState(): AppStateData {
     workPanelWidth: initialWorkPanelWidth,
     workPanelFileRequest: null,
     projectSort: initialSidebarPreferences.projectSort,
-    projectOpenPromptPath: null,
     messages: [],
     retainedSessionIds: [],
     dismissedAssistantErrorMessages: {},

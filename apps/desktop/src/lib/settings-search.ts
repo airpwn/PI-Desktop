@@ -91,6 +91,9 @@ export const SETTINGS_NAV: SettingsNavEntry[] = [
       "settings.preventScreenSleepDesc",
       "settings.cliOpenFolderTitle",
       "settings.cliOpenFolderDesc",
+      "settings.cliOpenFolderPrompt",
+      "settings.cliOpenFolderAuto",
+      "settings.cliOpenFolderNone",
     ],
   },
   {

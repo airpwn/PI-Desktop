@@ -55,12 +55,15 @@ test("create project dialog can create the project from a git checkout", () => {
   assert.match(dialog, /createProjectFromGit\(\{/);
   assert.match(dialog, /url: cloneTarget\.url/);
   assert.match(dialog, /parentPath: cloneParent/);
-  assert.match(dialog, /!projectName \|\| !cloneTarget \|\| !cloneParent \|\| busy/);
+  assert.match(dialog, /!projectName \|\| !cloneTarget \|\| !cloneParent \|\| Boolean\(cloneWarning\) \|\| busy/);
   assert.match(dialog, /project\.cloning/);
-  assert.match(store, /createProjectFromGit: async \(\{ name, url, parentPath \}\)/);
-  assert.match(store, /api\.cloneProjectInto\(url, parentPath\)/);
+  assert.match(store, /createProjectFromGit: async \(\{ name, url, parentPath, intoParent, cloneName \}\)/);
+  assert.match(
+    store,
+    /api\.cloneProjectInto\(url, parentPath, \{\s*intoParent,\s*name: cloneName,\s*\}\)/,
+  );
   assert.match(store, /folders: \[checkout\.path\], primaryPath: checkout\.path/);
-  assert.match(api, /cloneProjectInto: \(url: string, parentPath: string\)/);
+  assert.match(api, /cloneProjectInto:\s*\(\s*url: string,\s*parentPath: string,\s*options\?: \{ intoParent\?: boolean; name\?: string \},\s*\)/);
   assert.match(protocol, /projectCloneCheckout:\s*"pi-desktop\/project\/cloneCheckout"/);
 });
 
@@ -68,7 +71,7 @@ test("project creation creates one logical group with a primary workspace", () =
   assert.match(store, /createProjectDialogOpen: boolean/);
   assert.match(
     store,
-    /openProject: async \(options\) => \{\s*set\(\{\s*createProjectDialogOpen: true,\s*createProjectDialogRemoteHostKey: options\?\.remoteHostKey\s*\}\)/,
+    /openProject: async \(options\) => \{\s*set\(\{\s*createProjectDialogOpen: true,\s*createProjectDialogRemoteHostKey: options\?\.remoteHostKey,\s*\/\/[^\n]*\n\s*createProjectDialogPrefill: options\?\.prefill \?\? null,\s*\}\)/,
   );
   assert.match(store, /createProjectFromFolders: async \(\{ name, folders, primaryPath \}\)/);
   assert.match(store, /const orderedFolders = \[/);
@@ -82,7 +85,7 @@ test("project creation creates one logical group with a primary workspace", () =
   assert.match(store, /get\(\)\.renameProject\(groupPrimary, normalizedName\)/);
   assert.match(
     store,
-    /set\(\{\s*createProjectDialogOpen: false,\s*createProjectDialogRemoteHostKey: undefined,\s*onboarding,\s*page: "chat"\s*\}\)/,
+    /set\(\{\s*createProjectDialogOpen: false,\s*createProjectDialogRemoteHostKey: undefined,\s*createProjectDialogPrefill: null,\s*onboarding,\s*page: "chat"\s*\}\)/,
   );
   // Folder picks and git checkouts share one project creation semantic.
   assert.match(store, /async function createNamedProjectGroup\(/);
@@ -134,7 +137,7 @@ test("clone checkout handler clones without touching the active workspace", () =
   const handler = main.slice(start, end);
   assert.ok(start >= 0 && end > start, "clone checkout handler should exist");
   assert.match(handler, /parentPath/);
-  assert.match(handler, /cloneGitRepository\(\{ url, parentPath \}\)/);
+  assert.match(handler, /cloneGitRepository\(\{\s*url,\s*parentPath,\s*intoParent: input\.intoParent === true,\s*name: name \|\| undefined,\s*\}\)/);
   // The renderer still creates the group, so the handler never sets a workspace.
   assert.doesNotMatch(handler, /workspace\.set/);
   assert.doesNotMatch(handler, /dialog\.showOpenDialog/);
@@ -188,4 +191,33 @@ test("create project dialog stays lineless (D297)", () => {
     styles,
     /\.project-create-dialog-source-option:focus-visible,[^}]*box-shadow: 0 0 0 2px color-mix\(in oklab, var\(--ds-accent\) 22%, transparent\);/,
   );
+});
+
+test("git clone subfolder toggle, custom name, and inspect warnings are wired", () => {
+  // The toggle defaults to OFF: clone straight into the picked folder, and the
+  // repository-name input only becomes editable in subfolder mode.
+  assert.match(dialog, /const \[cloneIntoSubfolder, setCloneIntoSubfolder\] = useState\(false\)/);
+  assert.match(dialog, /const \[customRepoName, setCustomRepoName\] = useState\(""\)/);
+  assert.match(dialog, /intoParent: !cloneIntoSubfolder,/);
+  assert.match(dialog, /cloneName: cloneIntoSubfolder \? cloneDestName : undefined,/);
+  assert.match(dialog, /project\.createCloneRepoNameLabel/);
+  assert.match(dialog, /project\.createCloneSubfolderToggle/);
+  assert.match(dialog, /disabled=\{busy \|\| !cloneIntoSubfolder\}/);
+  assert.match(dialog, /project\.cloneParentHint/);
+  assert.match(dialog, /project\.cloneDestHint/);
+  // A clone warning blocks both the click path and any implicit submit.
+  assert.match(dialog, /if \(!cloneTarget \|\| !cloneParent \|\| cloneWarning\) return;/);
+  assert.match(dialog, /cloneWarning = customRepoNameInvalid/);
+  assert.match(dialog, /project\.cloneRepoNameInvalid/);
+  assert.match(dialog, /role="alert"/);
+  // Inline warnings are UX-only: main still validates authoritatively at clone time.
+  assert.match(dialog, /api\s+\.inspectPath\(/);
+  assert.match(dialog, /project\.cloneParentNotEmptyWarning/);
+  assert.match(dialog, /project\.cloneDestExistsWarning/);
+  assert.match(api, /inspectPath: \(path: string\)/);
+  assert.match(protocol, /fsInspectPath:\s*"pi-desktop\/fs\/inspectPath"/);
+  assert.match(main, /IPC\.invoke\.fsInspectPath/);
+  // The CLI opens the create form with a prefill instead of a confirmation prompt.
+  assert.match(dialog, /state\.createProjectDialogPrefill/);
+  assert.match(store, /createProjectDialogPrefill: options\?\.prefill \?\? null/);
 });
