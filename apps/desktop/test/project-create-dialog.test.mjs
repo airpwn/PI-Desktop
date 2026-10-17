@@ -195,14 +195,14 @@ test("create project dialog stays lineless (D297)", () => {
 
 test("git clone subfolder toggle, custom name, and inspect warnings are wired", () => {
   // The toggle defaults to OFF: clone straight into the picked folder, and the
-  // repository-name input only becomes editable in subfolder mode.
+  // repository-name input only exists in subfolder mode.
   assert.match(dialog, /const \[cloneIntoSubfolder, setCloneIntoSubfolder\] = useState\(false\)/);
   assert.match(dialog, /const \[customRepoName, setCustomRepoName\] = useState\(""\)/);
   assert.match(dialog, /intoParent: !cloneIntoSubfolder,/);
   assert.match(dialog, /cloneName: cloneIntoSubfolder \? cloneDestName : undefined,/);
   assert.match(dialog, /project\.createCloneRepoNameLabel/);
   assert.match(dialog, /project\.createCloneSubfolderToggle/);
-  assert.match(dialog, /disabled=\{busy \|\| !cloneIntoSubfolder\}/);
+  assert.match(dialog, /\{cloneIntoSubfolder \? \(\s*<Input\s+id="project-create-clone-repo-name"/);
   assert.match(dialog, /project\.cloneParentHint/);
   assert.match(dialog, /project\.cloneDestHint/);
   // A clone warning blocks both the click path and any implicit submit.
@@ -220,4 +220,23 @@ test("git clone subfolder toggle, custom name, and inspect warnings are wired", 
   // The CLI opens the create form with a prefill instead of a confirmation prompt.
   assert.match(dialog, /state\.createProjectDialogPrefill/);
   assert.match(store, /createProjectDialogPrefill: options\?\.prefill \?\? null/);
+});
+
+test("git mode keeps the project name manual and the subdirectory name sticky", () => {
+  // Scope "Create Project > Git Repository": the name field is never seeded
+  // from the repository URL or the chosen folder while the Git source is
+  // active, and submit does not fall back to a derived default — an empty
+  // name leaves the Clone button disabled.
+  assert.match(dialog, /if \(source === "git" \|\| nameTouchedRef\.current\) return;/);
+  assert.match(
+    dialog,
+    /source === "git" \? clampProjectName\(name\) : resolveProjectName\(name, defaultName\)/,
+  );
+  // Checking the subdirectory toggle seeds its input from the parsed
+  // repository name exactly once; later URL edits never overwrite it.
+  assert.match(
+    dialog,
+    /if \(!customRepoName\.trim\(\) && cloneTarget\) setCustomRepoName\(cloneTarget\.name\)/,
+  );
+  assert.match(dialog, /if \(repoNameSeededRef\.current\) return;/);
 });

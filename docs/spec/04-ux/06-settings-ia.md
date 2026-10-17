@@ -216,11 +216,14 @@ Settings is a **full-window page** that replaces the app sidebar + main chrome (
   directly; absent means `prompt`. In the Create Project form a Git clone
   goes into the chosen folder, which must then be empty; the per-dialog
   "Clone into a subfolder named after the repository" toggle (off by
-  default) clones into a repository-named subfolder instead and enables an
-  optional repository name, with inline warnings shown before Create. A
-  missing or non-directory path shows a localized toast and the app opens
-  normally. Flag arguments (`--*`) are ignored; macOS `open -a` does not
-  forward arguments.
+  default) clones into a repository-named subfolder instead and shows a
+  subdirectory-name field, seeded once from the repository name and never
+  overwritten by later URL edits. A Git source keeps the Project Name field
+  empty — the repository URL and the chosen folder never fill it — and
+  Clone stays disabled until a name is typed; inline warnings show before
+  Create. A missing or non-directory path shows a localized toast and the
+  app opens normally. Flag arguments (`--*`) are ignored; macOS `open -a`
+  does not forward arguments.
 - Platform-specific **Close behavior** remains in General because it changes
   application-window behavior rather than agent behavior.
 - File-open target, menu-bar behavior, and bottom-panel behavior are not
