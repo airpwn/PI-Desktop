@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { writeFileSync, mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -266,6 +266,89 @@ test("cloneGitRepository gates a plain http remote on the user's endpoint policy
     assert.equal(dest, join(root, "demo"));
   } finally {
     setAllowInsecureUserEndpoints(false);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// Cases (d) default dest = parent/name and (f) dest already exists are covered
+// by "runs git clone -- url dest" and "refuses an existing destination" above.
+test("cloneGitRepository honors the into-parent and custom-name clone modes", async () => {
+  const root = mkdtempSync(join(tmpdir(), "pi-clone-"));
+  try {
+    // (a) intoParent + empty folder: the parent itself is the destination,
+    // and the optional name must not change it.
+    const empty = join(root, "empty");
+    mkdirSync(empty);
+    let captured;
+    const dest = await cloneGitRepository({
+      url: "https://github.com/org/demo.git",
+      parentPath: empty,
+      intoParent: true,
+      name: "repo",
+      run: async (_cwd, args) => {
+        captured = { args };
+        return { code: 0, stderr: "" };
+      },
+    });
+    assert.equal(dest, empty);
+    assert.deepEqual(captured.args, [
+      "clone",
+      "--",
+      "https://github.com/org/demo.git",
+      empty,
+    ]);
+
+    // (b) intoParent over a stray file: CONFLICT before git runs.
+    const busy = join(root, "busy");
+    mkdirSync(busy);
+    writeFileSync(join(busy, "notes.txt"), "x");
+    await assert.rejects(
+      () =>
+        cloneGitRepository({
+          url: "https://github.com/org/demo.git",
+          parentPath: busy,
+          intoParent: true,
+          run: async () => {
+            throw new Error("git must not run");
+          },
+        }),
+      /empty folder/,
+    );
+
+    // (c) intoParent over an existing checkout: `.git` counts as content.
+    const cloned = join(root, "cloned");
+    mkdirSync(cloned);
+    mkdirSync(join(cloned, ".git"));
+    await assert.rejects(
+      () =>
+        cloneGitRepository({
+          url: "https://github.com/org/demo.git",
+          parentPath: cloned,
+          intoParent: true,
+          run: async () => {
+            throw new Error("git must not run");
+          },
+        }),
+      /empty folder/,
+    );
+
+    // (e) a custom name picks the subfolder in the default mode.
+    const named = join(root, "named");
+    mkdirSync(named);
+    let capturedNamed;
+    const destNamed = await cloneGitRepository({
+      url: "https://github.com/org/demo.git",
+      parentPath: named,
+      name: "custom-dest",
+      run: async (_cwd, args) => {
+        capturedNamed = { args };
+        mkdirSync(join(named, "custom-dest"));
+        return { code: 0, stderr: "" };
+      },
+    });
+    assert.equal(destNamed, join(named, "custom-dest"));
+    assert.equal(capturedNamed.args.at(-1), join(named, "custom-dest"));
+  } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });

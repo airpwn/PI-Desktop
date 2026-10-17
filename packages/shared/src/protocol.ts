@@ -392,6 +392,7 @@ export const IPC = {
     browserOpenExternal: "pi-desktop/browser/openExternal",
     browserGetState: "pi-desktop/browser/getState",
     fsList: "pi-desktop/fs/list",
+    fsInspectPath: "pi-desktop/fs/inspectPath",
     fsRead: "pi-desktop/fs/read",
     fsReadImageDataUrl: "pi-desktop/fs/readImageDataUrl",
     statsGetTokenUsageHistory: "pi-desktop/stats/getTokenUsageHistory",
@@ -439,6 +440,8 @@ export const IPC = {
     windowFullScreen: "pi-desktop/window/event/fullscreen",
     windowWorkPanelResize: "pi-desktop/window/event/workPanelResize",
     menuCommand: "pi-desktop/menu/event/command",
+    /** A folder passed on the CLI (`pi-desktop <path>`) for the shell to open. */
+    projectOpenRequest: "pi-desktop/app/event/projectOpenRequest",
     traySessionActivated: "pi-desktop/tray/event/sessionActivated",
     notificationChanged: "pi-desktop/notification/event/changed",
     sessionsChanged: "pi-desktop/session/event/changed",

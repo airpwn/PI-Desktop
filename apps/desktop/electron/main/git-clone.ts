@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import {
   isGitCloneRepoName,
@@ -72,6 +72,13 @@ export async function cloneGitRepository(input: {
   url: string;
   parentPath: string;
   name?: string;
+  /**
+   * Clone straight into `parentPath` instead of a subfolder named after the
+   * repository. The folder must be completely empty; `git clone` refuses
+   * otherwise. Used by the create-project form when the subfolder toggle is
+   * off, and by nothing else.
+   */
+  intoParent?: boolean;
   run?: typeof runGitClone;
 }): Promise<string> {
   const target = parseGitCloneUrl(input.url, {
@@ -100,13 +107,26 @@ export async function cloneGitRepository(input: {
   if (!existsSync(parent) || !statSync(parent).isDirectory()) {
     throw codedError("NOT_FOUND", "Choose a folder to clone into");
   }
-  const dest = resolve(parent, name);
-  const rel = relative(parent, dest);
-  if (!rel || rel.startsWith("..") || isAbsolute(rel)) {
-    throw codedError("INVALID_ARGUMENT", "Enter a git repository URL");
-  }
-  if (existsSync(dest)) {
-    throw codedError("CONFLICT", `"${name}" already exists in that folder`);
+  let dest = resolve(parent, name);
+  if (input.intoParent) {
+    let empty = false;
+    try {
+      empty = readdirSync(parent).length === 0;
+    } catch {
+      empty = false;
+    }
+    if (!empty) {
+      throw codedError("CONFLICT", "Choose an empty folder to clone into");
+    }
+    dest = parent;
+  } else {
+    const rel = relative(parent, dest);
+    if (!rel || rel.startsWith("..") || isAbsolute(rel)) {
+      throw codedError("INVALID_ARGUMENT", "Enter a git repository URL");
+    }
+    if (existsSync(dest)) {
+      throw codedError("CONFLICT", `"${name}" already exists in that folder`);
+    }
   }
   const run = input.run ?? runGitClone;
   const result = await run(parent, ["clone", "--", target.url, dest]);

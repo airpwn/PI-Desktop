@@ -30,6 +30,7 @@ import type { PluginViewHost } from "../plugin-view-host";
 import type { HostProcess } from "../host-process";
 import { syncPluginDisplayLocale } from "../plugin-display-locale";
 import { createPowerSaveBlockerController } from "../keep-awake";
+import { takePendingProjectOpen } from "./cli-project-open";
 import type { PluginAppearance } from "../../shared/plugin-panel-chrome";
 
 export type ApplicationLifecycleState = {
@@ -393,6 +394,37 @@ export function createApplicationLifecycle({
     });
   }
 
+  function deliverCliProjectOpen() {
+    // A pre-boot request stays queued for the startup flush; consuming it here
+    // would drop it because the renderer gate is not ready yet.
+    if (!appState.applicationBooted) return;
+    const pending = takePendingProjectOpen();
+    if (!pending) return;
+    void (async () => {
+      await ensureWindow();
+      const window = state.mainWindow;
+      if (!window || window.isDestroyed()) return;
+      if (!(await waitForMenuRenderer(window))) return;
+      if (window.isMinimized()) window.restore();
+      window.show();
+      window.focus();
+      if (pending.path) {
+        if (!existsSync(pending.path)) return;
+        sendToRenderer(IPC.event.projectOpenRequest, { path: pending.path });
+        return;
+      }
+      const locale = appearanceState.updaterLocale || app.getLocale();
+      sendToRenderer(IPC.event.toast, {
+        message: catalogs[resolveLocale(locale)].project.cliInvalidFolder.replace(
+          "{{path}}",
+          pending.rejectedArg ?? "",
+        ),
+      });
+    })().catch((error) => {
+      logger.app("diagnostics", "error", "cli project open failed", { data: String(error) });
+    });
+  }
+
   function executeNativeMenuAction(
     action: NativeMenuAction,
     target: BrowserWindow | null = state.mainWindow,
@@ -737,5 +769,6 @@ export function createApplicationLifecycle({
     resolveAppearance,
     broadcastAppearance,
     flushPendingApplicationMenuCommands,
+    deliverCliProjectOpen,
   };
 }

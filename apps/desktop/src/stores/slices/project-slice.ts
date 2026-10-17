@@ -15,6 +15,7 @@ import {
 import {
   clearSessionAsks,
 } from "../../lib/pending-asks";
+import { defaultProjectName } from "../../lib/project-name";
 import {
   clearSessionPermissions,
 } from "../../lib/pending-permissions";
@@ -114,7 +115,7 @@ async function createNamedProjectGroup(
       if (!workspace || !runtime.navigationIntentIsCurrent(intent)) return;
       const onboarding = await api.getOnboarding();
       if (!runtime.navigationIntentIsCurrent(intent)) return;
-      set({ createProjectDialogOpen: false, createProjectDialogRemoteHostKey: undefined, onboarding, page: "chat" });
+      set({ createProjectDialogOpen: false, createProjectDialogRemoteHostKey: undefined, createProjectDialogPrefill: null, onboarding, page: "chat" });
       return;
     }
   }
@@ -131,7 +132,7 @@ async function createNamedProjectGroup(
   get().renameProject(groupPrimary, normalizedName);
   const onboarding = await api.getOnboarding();
   if (!runtime.navigationIntentIsCurrent(intent)) return;
-  set({ createProjectDialogOpen: false, createProjectDialogRemoteHostKey: undefined, onboarding, page: "chat" });
+  set({ createProjectDialogOpen: false, createProjectDialogRemoteHostKey: undefined, createProjectDialogPrefill: null, onboarding, page: "chat" });
 }
 
 /**
@@ -240,6 +241,7 @@ export function createProjectSlice({
   | "createProjectFromGit"
   | "clearProject"
   | "deleteProject"
+  | "handleCliProjectOpen"
   | "toggleSessionPinned"
   | "toggleSessionArchived"
   | "archiveSession"
@@ -392,10 +394,19 @@ export function createProjectSlice({
     },
 
     openProject: async (options) => {
-      set({ createProjectDialogOpen: true, createProjectDialogRemoteHostKey: options?.remoteHostKey });
+      set({
+        createProjectDialogOpen: true,
+        createProjectDialogRemoteHostKey: options?.remoteHostKey,
+        // Always assign (never inherit) so a plain open cannot reuse stale seeds.
+        createProjectDialogPrefill: options?.prefill ?? null,
+      });
     },
     closeProjectDialog: () => {
-      set({ createProjectDialogOpen: false, createProjectDialogRemoteHostKey: undefined });
+      set({
+        createProjectDialogOpen: false,
+        createProjectDialogRemoteHostKey: undefined,
+        createProjectDialogPrefill: null,
+      });
     },
     createProjectFromFolders: async ({ name, folders, primaryPath }) =>
       createNamedProjectGroup(
@@ -413,12 +424,15 @@ export function createProjectSlice({
       get().renameProject(group.primaryPath, normalizedName);
       const onboarding = await api.getOnboarding();
       if (!runtime.navigationIntentIsCurrent(intent)) return;
-      set({ createProjectDialogOpen: false, createProjectDialogRemoteHostKey: undefined, onboarding, page: "chat" });
+      set({ createProjectDialogOpen: false, createProjectDialogRemoteHostKey: undefined, createProjectDialogPrefill: null, onboarding, page: "chat" });
     },
-    createProjectFromGit: async ({ name, url, parentPath }) => {
+    createProjectFromGit: async ({ name, url, parentPath, intoParent, cloneName }) => {
       // Clone first, then create the project through the same group path, so a
       // checkout and a folder pick produce identical project semantics.
-      const checkout = await api.cloneProjectInto(url, parentPath);
+      const checkout = await api.cloneProjectInto(url, parentPath, {
+        intoParent,
+        name: cloneName,
+      });
       await createNamedProjectGroup(
         { get, set, runtime },
         { name, folders: [checkout.path], primaryPath: checkout.path },
@@ -485,6 +499,39 @@ export function createProjectSlice({
       if (isOpen) await get().closeProjectPath(path);
       persistCurrentSidebar(get);
       await get().refreshSessions();
+    },
+
+    /**
+     * A folder passed on the CLI, resolved by `cliOpenFolderBehavior`:
+     * known folder — "prompt"/"auto" activate its project, "none" leaves the
+     * current chat untouched; unknown folder — "auto" creates the project
+     * silently, "prompt"/"none" open the create form prefilled with the path.
+     */
+    handleCliProjectOpen: async (path) => {
+      const key = normalizeProjectPath(path);
+      if (!key) return;
+      const { groups } = await api.listProjectGroups();
+      const existing = groups.find((group) =>
+        group.roots.some((root) => normalizeProjectPath(root.path) === key),
+      );
+      if (existing) {
+        if (get().settings?.cliOpenFolderBehavior !== "none") {
+          await get().activateProject(existing.primaryPath || path);
+        }
+        return;
+      }
+      if (get().settings?.cliOpenFolderBehavior === "auto") {
+        await createNamedProjectGroup(
+          { get, set, runtime },
+          {
+            name: defaultProjectName({ source: "local", folders: [path] }),
+            folders: [path],
+            primaryPath: path,
+          },
+        );
+        return;
+      }
+      await get().openProject({ prefill: { folders: [path], cloneParent: path } });
     },
 
     toggleSessionPinned: (id) => {

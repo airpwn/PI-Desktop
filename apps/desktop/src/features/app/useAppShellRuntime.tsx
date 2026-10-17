@@ -79,6 +79,7 @@ export function useAppShellRuntime() {
   const appShellRef = useRef<HTMLDivElement>(null);
   const sidebarCollapsedRef = useRef(sidebarCollapsed);
   const sidebarWidthRef = useRef(sidebarWidth);
+  const pendingCliProjectOpenRef = useRef<string | null>(null);
   /**
    * The last width the user actually committed. A drag preview never writes
    * it, so a drag that collapses the sidebar and a later reopen return the
@@ -583,6 +584,15 @@ export function useAppShellRuntime() {
     );
     // Host-pushed toasts (plugin runtime etc.) are informational.
     const offToast = api.onToast((message) => showToast(message));
+    // CLI folder launches (`pi-desktop <path>`): buffer until the store is
+    // ready so the decision (activate / prompt / create) sees real state.
+    const offProjectOpenRequest = api.onProjectOpenRequest((event) => {
+      if (!useAppStore.getState().ready) {
+        pendingCliProjectOpenRef.current = event.path;
+        return;
+      }
+      void useAppStore.getState().handleCliProjectOpen(event.path);
+    });
     const offNotificationSound = api.onNotificationSound(playNotificationChime);
     // The first plaintext hop to an endpoint the user typed. The shell owns the
     // wording, and recording `insecureNoticeAcknowledged` keeps it to once; a
@@ -826,6 +836,7 @@ export function useAppShellRuntime() {
       offPlansChanged();
       offTodosChanged();
       offToast();
+      offProjectOpenRequest();
       offNotificationSound();
       offInsecureEndpoint();
       offBrowserPreview();
@@ -853,6 +864,15 @@ export function useAppShellRuntime() {
   ]);
 
   useEffect(() => installRendererApi(), []);
+
+  // Flush a CLI folder launch buffered before the store finished booting.
+  useEffect(() => {
+    if (!ready) return;
+    const path = pendingCliProjectOpenRef.current;
+    if (!path) return;
+    pendingCliProjectOpenRef.current = null;
+    void useAppStore.getState().handleCliProjectOpen(path);
+  }, [ready]);
 
   useEffect(() => {
     if (!ready) return;

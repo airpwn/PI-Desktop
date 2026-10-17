@@ -89,6 +89,11 @@ export const SETTINGS_NAV: SettingsNavEntry[] = [
       "settings.networkRelaxedModeStrictDesc",
       "settings.preventScreenSleep",
       "settings.preventScreenSleepDesc",
+      "settings.cliOpenFolderTitle",
+      "settings.cliOpenFolderDesc",
+      "settings.cliOpenFolderPrompt",
+      "settings.cliOpenFolderAuto",
+      "settings.cliOpenFolderNone",
     ],
   },
   {

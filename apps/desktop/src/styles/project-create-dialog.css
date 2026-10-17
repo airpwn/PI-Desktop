@@ -270,6 +270,18 @@
   line-height: var(--leading-compact);
 }
 
+.project-create-dialog-clone-warning {
+  margin: 8px 0 0;
+  color: var(--ds-error);
+  font-size: var(--text-xs-plus);
+  line-height: var(--leading-compact);
+}
+
+.project-create-dialog-repo-name-field,
+.project-create-dialog-clone-toggle {
+  margin-top: 8px;
+}
+
 .project-create-dialog-count {
   display: inline-flex;
   min-width: 18px;

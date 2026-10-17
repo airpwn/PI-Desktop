@@ -4,15 +4,16 @@ import { useTranslation } from "react-i18next";
 import { useBlockingOverlay } from "../lib/blocking-overlay";
 import { MAX_PROJECT_NAME_CHARS } from "../lib/sidebar-preferences";
 import { api } from "../lib/api";
-import { parseGitCloneUrl } from "../lib/git-clone-url";
+import { isGitCloneRepoName, parseGitCloneUrl } from "../lib/git-clone-url";
 import { allowInsecureUserEndpoints } from "@pi-desktop/shared";
 import {
+  clampProjectName,
   defaultProjectName,
   folderNameFromPath,
   resolveProjectName,
 } from "../lib/project-name";
 import { useAppStore } from "../stores/app-store";
-import { OverlayBackdrop, Button, Input, TooltipButton } from "./ui";
+import { OverlayBackdrop, Button, Checkbox, Input, TooltipButton } from "./ui";
 import { ProjectFolderPicker } from "./ProjectFolderPicker";
 import { RemoteProjectPicker, type RemoteProjectSelection } from "./remote/RemoteProjectPicker";
 import {
@@ -45,13 +46,25 @@ export function ProjectCreateDialog() {
   const { t } = useTranslation();
   const open = useAppStore((state) => state.createProjectDialogOpen);
   const initialRemoteHostKey = useAppStore((state) => state.createProjectDialogRemoteHostKey);
+  const prefill = useAppStore((state) => state.createProjectDialogPrefill);
   if (open) {
-    return <ProjectCreateDialogContent initialRemoteHostKey={initialRemoteHostKey} />;
+    return (
+      <ProjectCreateDialogContent
+        initialRemoteHostKey={initialRemoteHostKey}
+        prefill={prefill}
+      />
+    );
   }
   return null;
 }
 
-function ProjectCreateDialogContent({ initialRemoteHostKey }: { initialRemoteHostKey?: string }) {
+function ProjectCreateDialogContent({
+  initialRemoteHostKey,
+  prefill,
+}: {
+  initialRemoteHostKey?: string;
+  prefill: { folders?: string[]; cloneParent?: string } | null;
+}) {
   useBlockingOverlay();
   const { t } = useTranslation();
   const close = useAppStore((state) => state.closeProjectDialog);
@@ -68,34 +81,64 @@ function ProjectCreateDialogContent({ initialRemoteHostKey }: { initialRemoteHos
   const [folders, setFolders] = useState<string[]>([]);
   const [gitUrl, setGitUrl] = useState("");
   const [cloneParent, setCloneParent] = useState("");
+  const [cloneIntoSubfolder, setCloneIntoSubfolder] = useState(false);
+  const [customRepoName, setCustomRepoName] = useState("");
+  const [cloneCheck, setCloneCheck] = useState<{
+    checking: boolean;
+    warning: string | null;
+  }>({ checking: false, warning: null });
   const [busy, setBusy] = useState(false);
   const [folderPickerBusy, setFolderPickerBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const busyRef = useRef(false);
   const folderPickerInFlightRef = useRef(false);
-  // The picked source seeds the project name until the user types their own.
+  // The picked folder seeds the project name until the user types their own;
+  // git mode never seeds it, so a git project name must always be typed.
   const nameTouchedRef = useRef(false);
+  const repoNameSeededRef = useRef(false);
   const settings = useAppStore((state) => state.settings);
   const cloneTarget = parseGitCloneUrl(gitUrl, {
     allowInsecureHttp: allowInsecureUserEndpoints(settings),
   });
+  const customRepoNameValue = customRepoName.trim();
+  const customRepoNameInvalid =
+    customRepoNameValue !== "" && !isGitCloneRepoName(customRepoNameValue);
+  // Off: `git clone` targets the chosen folder itself, so the checkout is named
+  // after that folder. On: a subfolder named after the custom name, else after
+  // the repository.
+  const cloneDestName = cloneIntoSubfolder
+    ? customRepoNameValue || cloneTarget?.name || ""
+    : "";
+  const cloneDestPath =
+    cloneIntoSubfolder && cloneParent && cloneDestName
+      ? `${cloneParent.replace(/[\\/]+$/, "")}/${cloneDestName}`
+      : "";
+  // Local and remote sources may suggest a name from the picked folder; git
+  // mode stays empty so a URL or location choice never fills the name field.
   const defaultName = defaultProjectName({
     source: source === "remote" ? "local" : source,
     folders: source === "remote" && remoteProject ? [remoteProject.path] : folders,
-    repositoryName: cloneTarget?.name,
   });
-  const projectName = resolveProjectName(name, defaultName);
+  const cloneWarning = customRepoNameInvalid
+    ? t("project.cloneRepoNameInvalid")
+    : cloneCheck.warning;
+  const projectName =
+    source === "git" ? clampProjectName(name) : resolveProjectName(name, defaultName);
 
   useEffect(() => {
     setSource(initialRemoteHostKey ? "remote" : "local");
     setName("");
-    setFolders([]);
+    setFolders(prefill?.folders ?? []);
     setGitUrl("");
-    setCloneParent("");
+    setCloneParent(prefill?.cloneParent ?? "");
+    setCloneIntoSubfolder(false);
+    setCustomRepoName("");
+    setCloneCheck({ checking: false, warning: null });
     busyRef.current = false;
     folderPickerInFlightRef.current = false;
     nameTouchedRef.current = false;
+    repoNameSeededRef.current = false;
     setBusy(false);
     setFolderPickerBusy(false);
     const previousOverflow = document.body.style.overflow;
@@ -131,14 +174,72 @@ function ProjectCreateDialogContent({ initialRemoteHostKey }: { initialRemoteHos
       document.body.style.overflow = previousOverflow;
       if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
-  }, [close, initialRemoteHostKey]);
+  }, [close, initialRemoteHostKey, prefill]);
 
-  // The first folder or the repository name fills the field until the user
-  // types their own name; an emptied field still falls back to it on submit.
+  // The first folder fills the field until the user types their own name; an
+  // emptied field still falls back to it on submit. Git mode stays empty: the
+  // name must be typed, and a URL or location choice never fills it.
   useEffect(() => {
-    if (nameTouchedRef.current) return;
+    if (source === "git" || nameTouchedRef.current) return;
     setName(defaultName);
-  }, [defaultName]);
+  }, [defaultName, source]);
+
+  // Checking the subdirectory toggle seeds its name from the current
+  // repository URL exactly once; later URL edits never overwrite the field.
+  useEffect(() => {
+    if (!cloneIntoSubfolder) {
+      repoNameSeededRef.current = false;
+      return;
+    }
+    if (repoNameSeededRef.current) return;
+    repoNameSeededRef.current = true;
+    if (!customRepoName.trim() && cloneTarget) setCustomRepoName(cloneTarget.name);
+  }, [cloneIntoSubfolder, cloneTarget, customRepoName]);
+
+  // Keeps the inline warning and the Create button in step with what is on
+  // disk. Main still validates authoritatively when the clone starts; this is
+  // UX only, and the token drops results that arrive after the form moved on.
+  useEffect(() => {
+    if (source !== "git" || customRepoNameInvalid) {
+      setCloneCheck({ checking: false, warning: null });
+      return;
+    }
+    const target = cloneIntoSubfolder ? cloneDestPath : cloneParent;
+    if (!target) {
+      setCloneCheck({ checking: false, warning: null });
+      return;
+    }
+    let current = true;
+    setCloneCheck({ checking: true, warning: null });
+    void api
+      .inspectPath(target)
+      .then((info) => {
+        if (!current) return;
+        setCloneCheck({
+          checking: false,
+          warning: cloneIntoSubfolder
+            ? info.exists
+              ? t("project.cloneDestExistsWarning")
+              : null
+            : info.exists && !info.empty
+              ? t("project.cloneParentNotEmptyWarning")
+              : null,
+        });
+      })
+      .catch(() => {
+        if (current) setCloneCheck({ checking: false, warning: null });
+      });
+    return () => {
+      current = false;
+    };
+  }, [
+    source,
+    cloneIntoSubfolder,
+    cloneDestPath,
+    cloneParent,
+    customRepoNameInvalid,
+    t,
+  ]);
 
   const addFolders = async () => {
     if (busyRef.current || folderPickerInFlightRef.current) return;
@@ -182,11 +283,10 @@ function ProjectCreateDialogContent({ initialRemoteHostKey }: { initialRemoteHos
   };
 
   const submit = async () => {
-    const projectName = resolveProjectName(name, defaultName);
     if (busyRef.current) return;
     if (!projectName || (source === "remote" && !remoteProject)) return;
     if (source === "git") {
-      if (!cloneTarget || !cloneParent) return;
+      if (!cloneTarget || !cloneParent || cloneWarning) return;
     } else if (source === "local" && folders.length === 0) {
       return;
     }
@@ -200,6 +300,8 @@ function ProjectCreateDialogContent({ initialRemoteHostKey }: { initialRemoteHos
           name: projectName,
           url: cloneTarget.url,
           parentPath: cloneParent,
+          intoParent: !cloneIntoSubfolder,
+          cloneName: cloneIntoSubfolder ? cloneDestName : undefined,
         });
       } else {
         await createProject({
@@ -381,6 +483,29 @@ function ProjectCreateDialogContent({ initialRemoteHostKey }: { initialRemoteHos
                   disabled={busy}
                   onChange={(event) => setGitUrl(event.target.value)}
                 />
+                {cloneIntoSubfolder ? (
+                  <Input
+                    id="project-create-clone-repo-name"
+                    className="field-input project-create-dialog-repo-name-field"
+                    value={customRepoName}
+                    placeholder={cloneTarget?.name || ""}
+                    aria-label={t("project.createCloneRepoNameLabel")}
+                    aria-invalid={customRepoNameInvalid || undefined}
+                    spellCheck={false}
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    autoComplete="off"
+                    disabled={busy}
+                    onChange={(event) => setCustomRepoName(event.target.value)}
+                  />
+                ) : null}
+                <Checkbox
+                  className="project-create-dialog-clone-toggle"
+                  label={t("project.createCloneSubfolderToggle")}
+                  checked={cloneIntoSubfolder}
+                  disabled={busy}
+                  onChange={(event) => setCloneIntoSubfolder(event.target.checked)}
+                />
 
                 <Button
                   type="button"
@@ -409,10 +534,19 @@ function ProjectCreateDialogContent({ initialRemoteHostKey }: { initialRemoteHos
                 </Button>
 
                 <p className="project-create-dialog-clone-hint" role="status">
-                  {cloneTarget
-                    ? t("project.cloneDestHint", { name: cloneTarget.name })
-                    : t("project.cloneUrlHint")}
+                  {!cloneTarget
+                    ? t("project.cloneUrlHint")
+                    : cloneIntoSubfolder
+                      ? t("project.cloneDestHint", {
+                          name: cloneDestName || cloneTarget.name,
+                        })
+                      : t("project.cloneParentHint")}
                 </p>
+                {cloneWarning ? (
+                  <p className="project-create-dialog-clone-warning" role="alert">
+                    {cloneWarning}
+                  </p>
+                ) : null}
               </section>
             )}
           </div>
@@ -426,7 +560,7 @@ function ProjectCreateDialogContent({ initialRemoteHostKey }: { initialRemoteHos
               variant="primary"
               disabled={
                 source === "remote" ? !projectName || !remoteProject || busy : source === "git"
-                  ? !projectName || !cloneTarget || !cloneParent || busy
+                  ? !projectName || !cloneTarget || !cloneParent || Boolean(cloneWarning) || busy
                   : !projectName || folders.length === 0 || busy
               }
             >

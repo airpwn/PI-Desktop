@@ -1,10 +1,12 @@
 import { app } from "electron";
+import { queueCliProjectOpen } from "./cli-project-open";
 
 export type ApplicationActivationDependencies = {
   restoreMainWindow: () => void;
   isQuitting: () => boolean;
   isApplicationBooted: () => boolean;
   hasVisibleWindow: () => boolean;
+  requestCliProjectOpen: () => void;
 };
 
 /** Register activation paths that restore the existing application window. */
@@ -13,13 +15,18 @@ export function registerApplicationActivation({
   isQuitting,
   isApplicationBooted,
   hasVisibleWindow,
+  requestCliProjectOpen,
 }: ApplicationActivationDependencies): void {
   app.on("activate", restoreMainWindow);
 
   // Launching PI-Desktop again is a request to see the app that is already
   // running, not to start another process. Electron hands that launch to the
   // lock holder, so the visible result matches the tray's Show action.
-  app.on("second-instance", restoreMainWindow);
+  app.on("second-instance", (_event, argv, workingDirectory) => {
+    queueCliProjectOpen(argv, workingDirectory, app.getAppPath());
+    restoreMainWindow();
+    requestCliProjectOpen();
+  });
 
   // macOS can activate the app without emitting `activate` (Cmd+Tab, App
   // Exposé, and Spotlight). Restore only when no window is visible, so opening

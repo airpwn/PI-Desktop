@@ -444,6 +444,32 @@ export function SettingsPage() {
                 </SettingsRow>
               </SettingsCard>
 
+              <SettingsCard title={t("settings.cliOpenFolderTitle")}>
+                <SettingsRow
+                  title={t("settings.cliOpenFolderTitle")}
+                  description={t("settings.cliOpenFolderDesc")}
+                >
+                  <SettingsMenuSelect
+                    className="settings-cli-open-folder-select"
+                    label={t("settings.cliOpenFolderTitle")}
+                    value={settings.cliOpenFolderBehavior ?? "prompt"}
+                    onChange={(behavior) =>
+                      void saveSettings({
+                        cliOpenFolderBehavior: behavior as
+                          | "prompt"
+                          | "auto"
+                          | "none",
+                      })
+                    }
+                    options={[
+                      { id: "prompt", label: t("settings.cliOpenFolderPrompt") },
+                      { id: "auto", label: t("settings.cliOpenFolderAuto") },
+                      { id: "none", label: t("settings.cliOpenFolderNone") },
+                    ]}
+                  />
+                </SettingsRow>
+              </SettingsCard>
+
               {platform !== "darwin" && <CloseBehaviorSection />}
             </div>
           )}

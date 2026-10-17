@@ -133,6 +133,15 @@ export type AppState = {
   /** Kept as a flat map for lightweight consumers (Sidebar). */
   projectCollapsed: Record<string, boolean>;
   projectSort: ProjectSort;
+  /**
+   * Seeds for the create-project form when something already knows the answer:
+   * a folder passed on the CLI. `folders` preselects local source folders,
+   * `cloneParent` defaults the git clone destination. Cleared on dialog close.
+   */
+  createProjectDialogPrefill: {
+    folders?: string[];
+    cloneParent?: string;
+  } | null;
   activeSessionId?: string;
   /** Composer toolbar choices retained on the draft while it has no session. */
   draftConfiguration: DraftSessionConfiguration | null;
@@ -273,7 +282,10 @@ export type AppState = {
     snapshotId: string,
   ) => Promise<ReviewRollbackResult | null>;
   abort: () => Promise<void>;
-  openProject: (options?: { remoteHostKey?: string }) => Promise<void>;
+  openProject: (options?: {
+    remoteHostKey?: string;
+    prefill?: { folders?: string[]; cloneParent?: string };
+  }) => Promise<void>;
   closeProjectDialog: () => void;
   createProjectFromRemote: (input: {
     name: string;
@@ -286,10 +298,17 @@ export type AppState = {
     primaryPath: string;
   }) => Promise<void>;
   /** Clone a public git remote into a chosen folder, then create its project. */
+  /**
+   * Clone a git remote, then create its project. `intoParent` clones straight
+   * into `parentPath` (which must be empty) instead of a subfolder; `name`
+   * overrides the subfolder name taken from the URL.
+   */
   createProjectFromGit: (input: {
     name: string;
     url: string;
     parentPath: string;
+    intoParent?: boolean;
+    cloneName?: string;
   }) => Promise<void>;
   cloneProject: (url: string) => Promise<ProjectWorkspace | null>;
   /** Re-read the active workspace metadata without changing the visible project. */
@@ -302,6 +321,8 @@ export type AppState = {
   switchProjectPath: (path: string) => Promise<ProjectWorkspace | null>;
   closeProjectPath: (path: string) => Promise<void>;
   clearProject: (opts?: NavigationOptions) => Promise<void>;
+  /** Handle a folder passed on the CLI: activate, prefilled form, or auto-create. */
+  handleCliProjectOpen: (path: string) => Promise<void>;
   /**
    * Delete a project and its stored sessions on the host, then drop every
    * renderer-local record of it. A path the host has no durable row for is

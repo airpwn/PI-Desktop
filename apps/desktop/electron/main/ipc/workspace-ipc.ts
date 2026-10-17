@@ -1,7 +1,7 @@
 import { BrowserWindow, dialog, shell, type OpenDialogOptions } from "electron";
 import { dirname } from "node:path";
 import { homedir } from "node:os";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import {
@@ -481,7 +481,14 @@ export function registerWorkspaceIpc({
 
   handle(
     IPC.invoke.projectCloneCheckout,
-    async (input: { url?: unknown; parentPath?: unknown } = {}) => {
+    async (
+      input: {
+        url?: unknown;
+        parentPath?: unknown;
+        intoParent?: unknown;
+        name?: unknown;
+      } = {},
+    ) => {
       const url = typeof input.url === "string" ? input.url.trim() : "";
       const parentPath =
         typeof input.parentPath === "string" ? input.parentPath.trim() : "";
@@ -491,13 +498,46 @@ export function registerWorkspaceIpc({
           { errorCode: ErrorCodes.INVALID_ARGUMENT },
         );
       }
+      const name = typeof input.name === "string" ? input.name.trim() : "";
       // Clone only. The renderer still creates the logical project group, so
       // the active host workspace stays untouched until activation.
-      const dest = await cloneGitRepository({ url, parentPath });
+      const dest = await cloneGitRepository({
+        url,
+        parentPath,
+        intoParent: input.intoParent === true,
+        name: name || undefined,
+      });
       return {
         path: dest,
         name: dest.split(/[\\/]/).filter(Boolean).at(-1) || dest,
       };
+    },
+  );
+  // UX inspector for the create-project form: stat + entry names only, never
+  // content. Authoritative validation still happens at clone time in main.
+  handle(
+    IPC.invoke.fsInspectPath,
+    async (input: { path?: unknown } = {}) => {
+      const requested =
+        typeof input.path === "string" ? input.path.trim() : "";
+      if (!requested) {
+        return { exists: false, isDirectory: false, empty: false };
+      }
+      try {
+        if (!existsSync(requested)) {
+          return { exists: false, isDirectory: false, empty: false };
+        }
+        const isDirectory = statSync(requested).isDirectory();
+        return {
+          exists: true,
+          isDirectory,
+          empty: isDirectory && readdirSync(requested).length === 0,
+        };
+      } catch {
+        // Unreadable paths report as missing; the clone itself still fails
+        // loudly with the real error if the user proceeds.
+        return { exists: false, isDirectory: false, empty: false };
+      }
     },
   );
   handle(IPC.invoke.projectSet, async (path: string) => {

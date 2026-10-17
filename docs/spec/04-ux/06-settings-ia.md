@@ -205,6 +205,25 @@ Settings is a **full-window page** that replaces the app sidebar + main chrome (
     The first plaintext hop to such an endpoint shows one informational notice.
     The per-surface acknowledgements this replaced (`networkProxy.allowFakeIp`,
     `configSync.allowInsecureHttp`) are gone (ADR 0304).
+- **Terminal project open** (`pi-desktop <path>`): launching the app from a
+  terminal with a directory argument opens that folder as a project. A folder
+  that already belongs to a project group activates it, unless
+  `AppSettings.cliOpenFolderBehavior` is `none`, which leaves the active
+  project untouched. An unknown folder follows the same setting: `prompt`
+  (and `none`) opens the Create Project form prefilled with that folder —
+  local source, name from the folder name, and switching to Git keeps the
+  folder as the clone destination — while `auto` creates and activates it
+  directly; absent means `prompt`. In the Create Project form a Git clone
+  goes into the chosen folder, which must then be empty; the per-dialog
+  "Clone into a subfolder named after the repository" toggle (off by
+  default) clones into a repository-named subfolder instead and shows a
+  subdirectory-name field, seeded once from the repository name and never
+  overwritten by later URL edits. A Git source keeps the Project Name field
+  empty — the repository URL and the chosen folder never fill it — and
+  Clone stays disabled until a name is typed; inline warnings show before
+  Create. A missing or non-directory path shows a localized toast and the
+  app opens normally. Flag arguments (`--*`) are ignored; macOS `open -a`
+  does not forward arguments.
 - Platform-specific **Close behavior** remains in General because it changes
   application-window behavior rather than agent behavior.
 - File-open target, menu-bar behavior, and bottom-panel behavior are not
