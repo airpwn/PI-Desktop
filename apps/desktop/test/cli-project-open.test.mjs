@@ -56,9 +56,17 @@ test("parseCliProjectPath resolves `.` against the launch cwd", async (t) => {
   assert.equal(parseCliProjectPath([ENTRY, "sub/.."], folder), folder);
 });
 
-test("parseCliProjectPath accepts an absolute directory", async (t) => {
-  const { folder } = await withTempDir(t);
-  assert.equal(parseCliProjectPath([ENTRY, folder], "/"), folder);
+test("parseCliProjectPath never opens Electron's own app path", async (t) => {
+  const { root, folder } = await withTempDir(t);
+
+  // `.` is the application being loaded, not a requested project folder.
+  assert.equal(parseCliProjectPath([ENTRY, "."], folder, folder), null);
+  assert.equal(parseCliProjectPath([ENTRY, folder, folder], "/", folder), null);
+  assert.equal(findRejectedCliArg([ENTRY, "."], folder, folder), null);
+  // A real folder after the app path is still honored.
+  const second = join(root, "second");
+  await mkdir(second);
+  assert.equal(parseCliProjectPath([ENTRY, folder, second], root, folder), second);
 });
 
 test("parseCliProjectPath skips executable and flag-style arguments", async (t) => {
@@ -140,12 +148,12 @@ test("the renderer API listens on the project-open channel", () => {
   );
 });
 
-test("both second-instance paths parse the CLI folder", () => {
+test("both second-instance paths parse the CLI folder and skip the app path", () => {
   assert.match(entrySource, /second-instance[\s\S]*?queueCliProjectOpen\(/);
-  assert.match(entrySource, /queueCliProjectOpen\(process\.argv, process\.cwd\(\)\)/);
+  assert.match(entrySource, /queueCliProjectOpen\(process\.argv, process\.cwd\(\), app\.getAppPath\(\)\)/);
   assert.match(
     activationSource,
-    /second-instance[\s\S]*?queueCliProjectOpen\(argv, workingDirectory\)/,
+    /second-instance[\s\S]*?queueCliProjectOpen\(argv, workingDirectory, app\.getAppPath\(\)\)/,
   );
 });
 

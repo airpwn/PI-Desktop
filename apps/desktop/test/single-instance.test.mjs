@@ -58,6 +58,9 @@ async function launchInstallation(t, { override, development = false, managed = 
       isPackaged: !development,
       setName: (name) => calls.push(["name", name]),
       getPath: () => join(root, "appData"),
+      // Real Electron always exposes the loaded app path; the CLI parser uses
+      // it to skip `electron <app-dir>` launches.
+      getAppPath: () => join(root, "app"),
       setPath: (...args) => calls.push(["path", ...args]),
       setAppUserModelId: () => {},
       requestSingleInstanceLock: () => { calls.push(["lock"]); return ownsLock; },

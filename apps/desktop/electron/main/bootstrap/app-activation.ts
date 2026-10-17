@@ -23,7 +23,7 @@ export function registerApplicationActivation({
   // running, not to start another process. Electron hands that launch to the
   // lock holder, so the visible result matches the tray's Show action.
   app.on("second-instance", (_event, argv, workingDirectory) => {
-    queueCliProjectOpen(argv, workingDirectory);
+    queueCliProjectOpen(argv, workingDirectory, app.getAppPath());
     restoreMainWindow();
     requestCliProjectOpen();
   });

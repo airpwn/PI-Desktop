@@ -8,16 +8,16 @@ import { prepareStorage } from "./storage/bootstrap";
 if (hasSingleInstanceLock) {
   let booted = false;
   app.on("second-instance", (_event, argv, workingDirectory) => {
-    // Queue always: pre-boot the window may not exist yet, and the full
-    // composition root (which owns delivery) is not registered until later.
-    queueCliProjectOpen(argv, workingDirectory);
+    // Electron's own positional argument is the app being loaded (`electron .`
+    // in dev and E2E), so it must never be read as a project folder.
+    queueCliProjectOpen(argv, workingDirectory, app.getAppPath());
     if (booted) return;
     const window = BrowserWindow.getAllWindows()[0];
     window?.show();
     window?.focus();
   });
   // Cold start: the launching terminal's own arguments.
-  queueCliProjectOpen(process.argv, process.cwd());
+  queueCliProjectOpen(process.argv, process.cwd(), app.getAppPath());
   void prepareStorage(defaultDataDir, !singleInstanceRequired)
     .then(() => {
       booted = true;
